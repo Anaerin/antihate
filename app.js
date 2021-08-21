@@ -62,7 +62,7 @@ const client = new tmi.Client({
 	},
 	identity: {
 		username: channelName,
-		password: "oauth:" + oAuthToken
+		password: oAuthToken
 	},
 	channels: [ channelName ]
 });
