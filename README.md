@@ -6,6 +6,9 @@ The app logs into Twitch Chat using the credentials you provide, and keeps a 5 s
 
 In theory, legitimate chat members won't get caught, spam messages will be removed, and everything will go on as normal. Settings can be modified to suit your needs, adjusting sensitivity and the like, so hopefully everything should be customizible for you.
 
+## Known issues ##
+It doesn't check users are unique, so one particularly spammy user repeating the same line over and over again in a short period could concievably set it off, depending on how you have things set.
+
 ## How to set it up ##
 First, have node.js installed. Then clone this repo using git (or download it from the zip file and unpack it), then open a command prompt in the folder you cloned/extracted into.
 

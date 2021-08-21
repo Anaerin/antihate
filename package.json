@@ -14,5 +14,6 @@
   "license": "GPL-3.0-or-later",
   "dependencies": {
     "tmi.js": "^1.8.5"
-  }
+  },
+  "type": "module"
 }

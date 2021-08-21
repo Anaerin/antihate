@@ -1,19 +1,19 @@
 "use strict";
 // Set up your details and preferences here.
 
-// The channel name to join (yours).
+// The channel name to work on (yours). lower-case only, please.
 const channelName = "anaerin";     
 
 // Your oAuth token.
-const oAuthToken = "";             
+const oAuthToken = "";
 
 // How many similar messages there have to have been to count as a raid.
 const similarMessageThreshold = 4; 
 
-// Ban raiders.
+// Ban raiders?
 const banRaider = true;            
 
-// Timeout raiders. Please don't do both, or you may run into rate limits.
+// Or timeout raiders. Please don't do both, or you may run into rate limits.
 const timeoutRaider = false;       
 
 // Seconds to timeout raiders for. Only applies if timeoutRaider = true. Default is 5 minutes.
@@ -25,10 +25,10 @@ const subsOnly = false;
 // How long someone has to have been following to be allowed in followers only mode (in minutes, default is 12 hours)
 const followersOnlyAge = 720;
 
-// Seconds before Subs/Followers only and Unique Chat are unset. Default is 30.
-const raidCleanupDelay = 30;
+// Seconds before Subs/Followers only and Unique Chat are unset. Default is 5 minutes.
+const raidCleanupDelay = 300;
 
-// How often the array should shorten itself so it doesn't eat RAM keeping a complete history of chat, in ms. Default is 1 second.
+// How often the rolling buffer should shorten itself so it doesn't eat RAM keeping a complete history of chat, in ms. Default is 1 second.
 const pruneFrequency = 1000;
 
 // How long (in ms) to keep messages in the buffer. Default is 5 seconds.
@@ -47,7 +47,7 @@ const reason = "[AUTOMATIC] Part of a raid"
 //-------------------------------------------------------------------------------------------------------------------------------------------
 
 import tmi from 'tmi.js';
-import RollingArray from './lib/rollingArray';
+import RollingArray from './lib/rollingArray.js';
 
 const rollingArray = new RollingArray({ pruneFrequency, keepFor, threshold, minLength } );
 
@@ -76,20 +76,32 @@ client.on('message', (channel, tags, message, self) => {
 	const matchingMessages = rollingArray.likeRecently(message); // Get all the messages that are similar to this one.
 	if (matchingMessages.length > similarMessageThreshold) {
 		// We have more similar messages than our threshold: This is a raid, batten down the hatches.
+		let messageIDs = [];
+		let userIDs = [];
 		if (subsOnly) client.subscribers(channelName); // If subs only is set, turn on subs only.
 		else client.followersonly(channelName, followersOnlyAge); // Otherwise, turn on followers only.
 		client.r9kbeta(channelName); // Turn on unique chat
-		client.deletemessage(channelName, tags.id); // Delete the message that just tripped the alert
-		if (timeoutRaider) client.timeout(channelName, tags.username, timeoutLength, reason); // If timeout is set, timeout the user that tripped the alert
-		if (banRaider) client.ban(channelName, tags.username, reason); // if ban is set, ban the user that tripped the alert
+		messageIDs.push(tags.id);
+		userIDs.push(tags.username);
 		matchingMessages.forEach((val) => {
 			if (val.tags.id) {
-				client.deletemessage(channelName, val.tags.id); // Delete the previous messages that matched.
-				// And timeout or ban as above.
-				if (timeoutRaider) client.timeout(channelName, val.tags.username, timeoutLength, reason); 
-				if (banRaider) client.ban(channelName, val.tags.username, reason);
+				if (!messageIDs.includes(val.tags.id)) messageIDs.push(val.tags.id);
+				if (!userIDs.includes(val.tags.username)) userIDs.push(val.tags.username);
 			}
 		});
+		if (!timeoutRaider && !banRaider) {
+			// We're not timing out or banning anyone, so just delete the messages.
+			messageIDs.forEach((id) => {
+				client.deletemessage(channelName, id); // Delete messages that matched.
+			});
+		} else {
+			// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
+			userIDs.forEach((id) => {
+				// And timeout or ban the user that said them as above.
+				if (timeoutRaider) client.timeout(channelName, id, timeoutLength, reason); 
+				if (banRaider) client.ban(channelName, id, reason);
+			});
+		}
 		rollingArray.deleteIDs(matchingMessages.map((elem) => elem.tags.id));
 		if (!timeout) {
 			// If we don't have a timeout already set, set one to clear the subs/followers only and unique chat.
