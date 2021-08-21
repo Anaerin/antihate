@@ -1,0 +1,18 @@
+{
+  "name": "antihate",
+  "version": "0.0.1",
+  "description": "Simple Twitch bot to detect and deal with hate raids",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "JavaScript",
+    "Twitch"
+  ],
+  "author": "Robert Johnston <anaerin@gmail.com>",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "tmi.js": "^1.8.5"
+  }
+}
