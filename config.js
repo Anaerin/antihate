@@ -1,4 +1,4 @@
-export default config = {
+const config = {
 	// The channel name to work on (yours). lower-case only, please.
 	userName:"anaerin",
 
@@ -41,3 +41,4 @@ export default config = {
 	// Reason to use in timeouts and bans.
 	reason: "[AUTOMATIC] Part of a raid"
 }
+export default config;

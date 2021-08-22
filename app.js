@@ -85,7 +85,7 @@ client.on('hosting', (channel, target, viewers) => {
 });
 
 client.on('join', (channel, username, self) => {
-	console.info(`${channel}: ${self?"We":username} joined`);
+	console.info(`${channel}: ${self?"We":username} joined channel ${channel}`);
 });
 
 client.on('logon', () => {
@@ -101,7 +101,7 @@ client.on('notice', (channel, msgid, message) => {
 });
 
 client.on('part', (channel, username, self) => {
-	console.info(`${channel}: ${self?"We":username} left`);
+	console.info(`${channel}: ${self?"We":username} left channel ${channel}`);
 });
 
 client.on('ping', () => {
@@ -189,21 +189,21 @@ client.on('message', (channel, tags, message, self) => {
 	const matchingMessages = rollingArray.likeRecently(message); // Get all the messages that are similar to this one.
 	switch(tags["message-type"]) {
 		case "action":
-			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} * ${decorateUsername(tags)} ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${config.similarMessageThreshold} * ${decorateUsername(tags)} ${message}`);
 			break;
 		case "chat":
-			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} <${decorateUsername(tags)}> ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${config.similarMessageThreshold} <${decorateUsername(tags)}> ${message}`);
 			break;
 		case "whisper":
-			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} [${decorateUsername(tags)}] ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${config.similarMessageThreshold} [${decorateUsername(tags)}] ${message}`);
 			break;
 		default:
-			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} ?${decorateUsername(tags)}? ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${config.similarMessageThreshold} ?${decorateUsername(tags)}? ${message}`);
 			break;
 	}
 	if(self) return;
 	if(tags.mod) return;
-	if (matchingMessages.length > similarMessageThreshold) {
+	if (matchingMessages.length > config.similarMessageThreshold) {
 		// We have more similar messages than our threshold: This is a raid, batten down the hatches.
 		let messageIDs = [];
 		let userIDs = [];
