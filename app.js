@@ -2,7 +2,7 @@
 // Set up your details and preferences here.
 
 // The channel name to work on (yours). lower-case only, please.
-const channelName = "anaerin";     
+const userName = "anaerin";     
 
 // Your oAuth token.
 const oAuthToken = "";
@@ -38,7 +38,7 @@ const keepFor = 5000;
 const threshold = 0.9;
 
 // Minimum length the messages have to be to count. default is 30 characters.
-const minLength = 30;
+const minLength = 3;
 
 // Reason to use in timeouts and bans.
 const reason = "[AUTOMATIC] Part of a raid"
@@ -49,9 +49,24 @@ const reason = "[AUTOMATIC] Part of a raid"
 import tmi from 'tmi.js';
 import RollingArray from './lib/rollingArray.js';
 
-const rollingArray = new RollingArray({ pruneFrequency, keepFor, threshold, minLength } );
+const args = new Map();
+const argv = process.argv.slice(2);
+while (argv.length > 1) {
+	let argument = new String(argv.shift());
+	if (argument.startsWith("--")) { 
+		argument = argument.slice(2).toLowerCase();
+		args.set(argument, argv.shift());
+	}
+}
 
-const client = new tmi.Client({
+let channelName = userName;
+let testMode = false;
+if (args.has("testchannel")) {
+	channelName = args.get("testchannel");
+	testMode = true;
+}
+
+const connectionOptions = {
 	options: {
 		skipMembership: true,
 		skipUpdatingEmotesets: true
@@ -61,11 +76,21 @@ const client = new tmi.Client({
 		secure: true
 	},
 	identity: {
-		username: channelName,
+		username: userName,
 		password: oAuthToken
 	},
 	channels: [ channelName ]
-});
+}
+
+if (!oAuthToken) {
+	console.warn(`NOTICE: oAuthToken is not set. Will log in anonymously to ${channelName} in test mode.`);
+	testMode = true;
+	connectionOptions.identity = {};
+}
+
+const rollingArray = new RollingArray({ pruneFrequency, keepFor, threshold, minLength } );
+
+const client = new tmi.Client(connectionOptions);
 
 let timeout = false;
 
@@ -177,66 +202,109 @@ client.on('unhost', (channel, viewers) => {
 	console.info(`${channel}: Stopped hosting with ${viewers} viewers`);
 });
 
+function decorateUsername(tags) {
+	let output = "";
+	if (tags.staff) output += "$";
+	if (tags.broadcaster) output += "&";
+	if (tags.mod) output += "@";
+	if (tags.vip) output += "+";
+	output += tags.username;
+	return output;
+}
+
+let lockdown = false;
+let actedOnThisRaid = [];
+setInterval(() => {
+	if (lockdown && (lockdown + (raidCleanupDelay * 1000)) < Date.now()) {
+		console.info(`#${channelName}: RAID timeout passed, revoking lockdown`);
+		if (!testMode) {
+			if (subsOnly) client.subscribersoff(channelName);
+			else client.followersonlyoff(channelName);
+			client.r9kbetaoff(channelName);
+		} else {
+			if (subsOnly) console.info(`#${channelName}: TESTMODE - would remove Subs only mode`);
+			else console.info(`#${channelName}: TESTMODE - would remove Followers only mode`);
+		}
+		timeout = false;
+		lockdown = false;
+		actedOnThisRaid = [];
+	}
+}, 500);
+
 client.on('message', (channel, tags, message, self) => {
+	if(self) return;
+	if(tags.mod) return;
+	const matchingMessages = rollingArray.likeRecently(message); // Get all the messages that are similar to this one.
 	switch(tags["message-type"]) {
 		case "action":
-			console.info(`${channel}: * ${tags["username"]} ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} * ${decorateUsername(tags)} ${message}`);
 			break;
 		case "chat":
-			console.info(`${channel}: <${tags["username"]}> ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} <${decorateUsername(tags)}> ${message}`);
 			break;
 		case "whisper":
-			console.info(`${channel}: [${tags["username"]}] ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} [${decorateUsername(tags)}] ${message}`);
 			break;
 		default:
-			console.info(`${channel}: ?${tags["username"]}? ${message}`);
+			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} ?${decorateUsername(tags)}? ${message}`);
 			break;
-	}
-	
-	if(self) return;
-	const matchingMessages = rollingArray.likeRecently(message); // Get all the messages that are similar to this one.
-	console.info(`${channel}: Matches ${matchingMessages.length} messages in history`);
+	}	
 	if (matchingMessages.length > similarMessageThreshold) {
 		// We have more similar messages than our threshold: This is a raid, batten down the hatches.
-		console.warn(`${channel}: RAID DETECTED, going into lockdown`);
 		let messageIDs = [];
 		let userIDs = [];
-		if (subsOnly) client.subscribers(channelName); // If subs only is set, turn on subs only.
-		else client.followersonly(channelName, followersOnlyAge); // Otherwise, turn on followers only.
-		client.r9kbeta(channelName); // Turn on unique chat
+		if (!lockdown) {
+			console.warn(`${channel}: RAID DETECTED, going into lockdown`);
+			if (!testMode) {
+				if (subsOnly) client.subscribers(channel); // If subs only is set, turn on subs only.
+				else client.followersonly(channel, followersOnlyAge); // Otherwise, turn on followers only.
+				client.r9kbeta(channel); // Turn on unique chat
+			} else {
+				if (subsOnly) console.info(`${channel}: TESTMODE - would set Subs only mode`);
+				else console.info(`${channel}: TESTMODE - would set Followers only mode for ${followersOnlyAge}`);
+			}
+		}
+		lockdown = Date.now();
 		messageIDs.push(tags.id);
-		userIDs.push(tags.username);
+		if (!actedOnThisRaid.includes(tags.username)) userIDs.push(tags.username);
 		matchingMessages.forEach((val) => {
 			if (val.tags.id) {
 				if (!messageIDs.includes(val.tags.id)) messageIDs.push(val.tags.id);
-				if (!userIDs.includes(val.tags.username)) userIDs.push(val.tags.username);
+				if (!userIDs.includes(val.tags.username) && !actedOnThisRaid.includes(val.tags.username)) userIDs.push(val.tags.username);
 			}
 		});
 		console.info(`${channel}: RAID MEMBERS: ${userIDs.join()}`);
-		if (!timeoutRaider && !banRaider) {
-			// We're not timing out or banning anyone, so just delete the messages.
-			messageIDs.forEach((id) => {
-				client.deletemessage(channelName, id); // Delete messages that matched.
-			});
+		if (!testMode) {
+			if (!timeoutRaider && !banRaider) {
+				// We're not timing out or banning anyone, so just delete the messages.
+				messageIDs.forEach((id) => {
+					client.deletemessage(channel, id); // Delete messages that matched.
+				});
+			} else {
+				// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
+				userIDs.forEach((id) => {
+					// And timeout or ban the user that said them as above.
+					if (timeoutRaider) client.timeout(channel, id, timeoutLength, reason); 
+					if (banRaider) client.ban(channel, id, reason);
+					actedOnThisRaid.push(id);
+				});
+			}
 		} else {
-			// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
-			userIDs.forEach((id) => {
-				// And timeout or ban the user that said them as above.
-				if (timeoutRaider) client.timeout(channelName, id, timeoutLength, reason); 
-				if (banRaider) client.ban(channelName, id, reason);
-			});
+			if (!timeoutRaider && !banRaider) {
+				// We're not timing out or banning anyone, so just delete the messages.
+				messageIDs.forEach((id) => {
+					console.info(`${channel}: TESTMODE - would delete message ${id}`);
+				});
+			} else {
+				// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
+				userIDs.forEach((id) => {
+					// And timeout or ban the user that said them as above.
+					if (timeoutRaider) console.info(`${channel}: TESTMODE - would timeout ${id} for ${timeoutLength}, with reason ${reason}`);
+					if (banRaider) console.info(`${channel}: TESTMODE - would ban ${id} with reason ${reason}`);
+				});
+			}
 		}
 		rollingArray.deleteIDs(matchingMessages.map((elem) => elem.tags.id));
-		if (!timeout) {
-			// If we don't have a timeout already set, set one to clear the subs/followers only and unique chat.
-			setTimeout(() => {
-				console.info(`${channel}: RAID timeout passed, revoking lockdown`);
-				if (subsOnly) client.subscribersoff(channelName);
-				else client.followersonlyoff(channelName);
-				client.r9kbetaoff(channelName);
-				timeout = false;
-			}, raidCleanupDelay * 1000);
-		}
 	}
 	rollingArray.addEntry(tags, message);
 });
