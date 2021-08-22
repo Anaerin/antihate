@@ -13,6 +13,8 @@
   "author": "Robert Johnston <anaerin@gmail.com>",
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.10.1",
     "tmi.js": "^1.8.5"
   },
   "type": "module"
