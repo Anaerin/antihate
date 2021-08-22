@@ -14,10 +14,12 @@ First, have node.js installed. Then clone this repo using git (or download it fr
 
 Next, type `npm install` to download the dependencies.
 
-Then open `app.js` in your text editor of choice (notepad will do) and edit the settings at the top of the file. They're all documented, and should be reasonably sane defaults. You will need to get your oAuth token, which you [can do here](https://twitchapps.com/tmi/), and make sure you put in your username in lower-case.
+Then open `config.js` in your text editor of choice (notepad will do) and edit the settings. They're all documented, and should be reasonably sane defaults. You will need to get your oAuth token, which you [can do here](https://twitchapps.com/tmi/), and make sure you put in your username in lower-case.
 
 Once you've saved your changes, run `node app.js`, and the app will run and connect to Twitch. You're now up and running.
 
 To close, press `CTRL-C`.
+
+To run in test mode, which will connect anonymously and just report in the output what it would have done, add the argument `--testchannel <channelname>`. For instance: `node app.js --testchannel anaerin`. This will run in test mode, connecting to the channel for streamer anaerin.
 
 Any problems, bugs, anything like that, do let me know, raise a ticket or whatever.

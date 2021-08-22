@@ -1,51 +1,5 @@
 "use strict";
-// Set up your details and preferences here.
-
-// The channel name to work on (yours). lower-case only, please.
-const userName = "anaerin";     
-
-// Your oAuth token.
-const oAuthToken = "";
-
-// How many similar messages there have to have been to count as a raid.
-const similarMessageThreshold = 4; 
-
-// Ban raiders?
-const banRaider = true;            
-
-// Or timeout raiders. Please don't do both, or you may run into rate limits.
-const timeoutRaider = false;       
-
-// Seconds to timeout raiders for. Only applies if timeoutRaider = true. Default is 5 minutes.
-const timeoutLength = 300;         
-
-// Set subs only? If not, followers only will be set instead.
-const subsOnly = false;            
-
-// How long someone has to have been following to be allowed in followers only mode (in minutes, default is 12 hours)
-const followersOnlyAge = 720;
-
-// Seconds before Subs/Followers only and Unique Chat are unset. Default is 5 minutes.
-const raidCleanupDelay = 300;
-
-// How often the rolling buffer should shorten itself so it doesn't eat RAM keeping a complete history of chat, in ms. Default is 1 second.
-const pruneFrequency = 1000;
-
-// How long (in ms) to keep messages in the buffer. Default is 5 seconds.
-const keepFor = 5000;
-
-// How unique messages have to be to trigger the likeness. 1 is identical, 0 is completely different. Default is 0.9
-const threshold = 0.9;
-
-// Minimum length the messages have to be to count. default is 30 characters.
-const minLength = 30;
-
-// Reason to use in timeouts and bans.
-const reason = "[AUTOMATIC] Part of a raid"
-
-// Shouldn't need to touch anything below this line.
-//-------------------------------------------------------------------------------------------------------------------------------------------
-
+import config from './config.js';
 import tmi from 'tmi.js';
 import RollingArray from './lib/rollingArray.js';
 
@@ -59,7 +13,7 @@ while (argv.length > 1) {
 	}
 }
 
-let channelName = userName;
+let channelName = config.userName;
 let testMode = false;
 if (args.has("testchannel")) {
 	channelName = args.get("testchannel");
@@ -76,19 +30,19 @@ const connectionOptions = {
 		secure: true
 	},
 	identity: {
-		username: userName,
-		password: oAuthToken
+		username: config.userName,
+		password: config.oAuthToken
 	},
 	channels: [ channelName ]
 }
 
-if (!oAuthToken) {
+if (!config.oAuthToken) {
 	console.warn(`NOTICE: oAuthToken is not set. Will log in anonymously to ${channelName} in test mode.`);
 	testMode = true;
 	connectionOptions.identity = {};
 }
 
-const rollingArray = new RollingArray({ pruneFrequency, keepFor, threshold, minLength } );
+const rollingArray = new RollingArray({ pruneFrequency: config.pruneFrequency, keepFor: config.keepFor, threshold: config.threshold, minLength: config.minLength } );
 
 const client = new tmi.Client(connectionOptions);
 
@@ -218,11 +172,11 @@ setInterval(() => {
 	if (lockdown && (lockdown + (raidCleanupDelay * 1000)) < Date.now()) {
 		console.info(`#${channelName}: RAID timeout passed, revoking lockdown`);
 		if (!testMode) {
-			if (subsOnly) client.subscribersoff(channelName);
+			if (config.subsOnly) client.subscribersoff(channelName);
 			else client.followersonlyoff(channelName);
 			client.r9kbetaoff(channelName);
 		} else {
-			if (subsOnly) console.info(`#${channelName}: TESTMODE - would remove Subs only mode`);
+			if (config.subsOnly) console.info(`#${channelName}: TESTMODE - would remove Subs only mode`);
 			else console.info(`#${channelName}: TESTMODE - would remove Followers only mode`);
 		}
 		timeout = false;
@@ -232,8 +186,6 @@ setInterval(() => {
 }, 500);
 
 client.on('message', (channel, tags, message, self) => {
-	if(self) return;
-	if(tags.mod) return;
 	const matchingMessages = rollingArray.likeRecently(message); // Get all the messages that are similar to this one.
 	switch(tags["message-type"]) {
 		case "action":
@@ -248,7 +200,9 @@ client.on('message', (channel, tags, message, self) => {
 		default:
 			console.info(`${channel}: ${matchingMessages.length}/${similarMessageThreshold} ?${decorateUsername(tags)}? ${message}`);
 			break;
-	}	
+	}
+	if(self) return;
+	if(tags.mod) return;
 	if (matchingMessages.length > similarMessageThreshold) {
 		// We have more similar messages than our threshold: This is a raid, batten down the hatches.
 		let messageIDs = [];
@@ -256,12 +210,12 @@ client.on('message', (channel, tags, message, self) => {
 		if (!lockdown) {
 			console.warn(`${channel}: RAID DETECTED, going into lockdown`);
 			if (!testMode) {
-				if (subsOnly) client.subscribers(channel); // If subs only is set, turn on subs only.
-				else client.followersonly(channel, followersOnlyAge); // Otherwise, turn on followers only.
+				if (config.subsOnly) client.subscribers(channel); // If subs only is set, turn on subs only.
+				else client.followersonly(channel, config.followersOnlyAge); // Otherwise, turn on followers only.
 				client.r9kbeta(channel); // Turn on unique chat
 			} else {
-				if (subsOnly) console.info(`${channel}: TESTMODE - would set Subs only mode`);
-				else console.info(`${channel}: TESTMODE - would set Followers only mode for ${followersOnlyAge}`);
+				if (config.subsOnly) console.info(`${channel}: TESTMODE - would set Subs only mode`);
+				else console.info(`${channel}: TESTMODE - would set Followers only mode for ${config.followersOnlyAge}`);
 			}
 		}
 		lockdown = Date.now();
@@ -275,7 +229,7 @@ client.on('message', (channel, tags, message, self) => {
 		});
 		console.info(`${channel}: RAID MEMBERS: ${userIDs.join()}`);
 		if (!testMode) {
-			if (!timeoutRaider && !banRaider) {
+			if (!config.timeoutRaider && !config.banRaider) {
 				// We're not timing out or banning anyone, so just delete the messages.
 				messageIDs.forEach((id) => {
 					client.deletemessage(channel, id); // Delete messages that matched.
@@ -284,13 +238,13 @@ client.on('message', (channel, tags, message, self) => {
 				// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
 				userIDs.forEach((id) => {
 					// And timeout or ban the user that said them as above.
-					if (timeoutRaider) client.timeout(channel, id, timeoutLength, reason); 
-					if (banRaider) client.ban(channel, id, reason);
+					if (config.timeoutRaider) client.timeout(channel, id, config.timeoutLength, config.reason); 
+					if (config.banRaider) client.ban(channel, id, config.reason);
 					actedOnThisRaid.push(id);
 				});
 			}
 		} else {
-			if (!timeoutRaider && !banRaider) {
+			if (!config.timeoutRaider && !config.banRaider) {
 				// We're not timing out or banning anyone, so just delete the messages.
 				messageIDs.forEach((id) => {
 					console.info(`${channel}: TESTMODE - would delete message ${id}`);
@@ -299,8 +253,8 @@ client.on('message', (channel, tags, message, self) => {
 				// We're going to timeout or ban the user, which will purge the history anyway. So no need to delete.
 				userIDs.forEach((id) => {
 					// And timeout or ban the user that said them as above.
-					if (timeoutRaider) console.info(`${channel}: TESTMODE - would timeout ${id} for ${timeoutLength}, with reason ${reason}`);
-					if (banRaider) console.info(`${channel}: TESTMODE - would ban ${id} with reason ${reason}`);
+					if (config.timeoutRaider) console.info(`${channel}: TESTMODE - would timeout ${id} for ${config.timeoutLength}, with reason ${config.reason}`);
+					if (config.banRaider) console.info(`${channel}: TESTMODE - would ban ${id} with reason ${config.reason}`);
 				});
 			}
 		}
