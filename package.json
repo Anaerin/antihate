@@ -1,6 +1,6 @@
 {
   "name": "antihate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Simple Twitch bot to detect and deal with hate raids",
   "main": "app.js",
   "scripts": {
