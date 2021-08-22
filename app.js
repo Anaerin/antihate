@@ -38,7 +38,7 @@ const keepFor = 5000;
 const threshold = 0.9;
 
 // Minimum length the messages have to be to count. default is 30 characters.
-const minLength = 3;
+const minLength = 30;
 
 // Reason to use in timeouts and bans.
 const reason = "[AUTOMATIC] Part of a raid"
